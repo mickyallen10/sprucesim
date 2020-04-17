@@ -7,13 +7,13 @@ The goal of sprucesim is to to provide a framework for simulating even-aged stan
 
 ## Installation
 
-Installation of `{sprucesim}` from github:
+Installation of `sprucesim` from github:
 
 ``` r
 devtools::install.github("mickyallen10/sprucesim")
 ```
 
-Load `{sprucesim}` and dependent packages:
+Load `sprucesim` and dependent packages:
 
 ``` r
 invisible( lapply( c("sprucesim", "tidyverse"), library, character.only = T))
@@ -21,9 +21,9 @@ invisible( lapply( c("sprucesim", "tidyverse"), library, character.only = T))
 
 ## Forest Growth and Yield Simulation
 
-This is a basic example which shows you how to solve a common problem:
+This is a basic example which shows you how to run a stand simulation:
 
-``` r
+``` {r}
 library(sprucesim)
 library(tidyverse)
 sprucesim(stand.df = SpruceStands,
