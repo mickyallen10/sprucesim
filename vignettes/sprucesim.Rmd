@@ -1,0 +1,327 @@
+---
+title: "sprucesim: A Stand Level Forest Growth and Yield Simulator for Norway Spruce"
+author: "Micky G Allen II"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{"sprucesim: A Stand Level Forest Growth and Yield Simulator for Norway Spruce"}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+## Introduction
+
+The **sprucesim** package was developed to simulate stand-level forest growth and yield (G&Y) in even-aged Norway spruce forests. Further, **sprucesim** is designed to implement up to two thinnings by applying thinning criteria in several different methods. Currently, **sprucesim** can only simulate G&Y from existing stand data and does not have the ability to generate new stands from planting. The included G&Y functions are based on equations from Allen et al. 2020, but **sprucesim** is designed such that different equations may be implemented.
+
+Simulation with **sprucesim** is performed using the function **sprucesim()** and requires no additional packages. The output is a LIST of stand variables at each simulated time period (e.g t0, t1,...,tn). A helper function named **wholestandDF** is included to convert the LIST to a data.frame and requires the packages **dplyr**, **tidyr**, and **purr**.
+
+The purpose of this vignette is to provide documentation in the various ways **sprucesim** can be used to simulate G&Y under different thinning treatments.
+
+## Data inputs
+
+The data input to **sprucesim** must contain the documented variables (see ??sprucesim). The provided stand data **SpruceStands** indicate the required variables and format needed for using **sprucesim**. With the current version, all required variables must be initially included in the data.frame (the column order does not matter) but future versions will calculate some variables automatically. 
+
+Core variables include:
+
+**age**: Stand Age (years from planting)  
+**si**: Site index (m, base age 40 years)  
+**tph**: Number of trees per hectare  
+**bph**: Basal area per hectare (m2)  
+**vol**: Stand Volume (outside bark) per hectare (m3)  
+**qmd**: quadratic mean diameter (cm)  
+**hd**: stand dominant height (m)
+
+Descripter variables for thinning include:
+
+**thinid**: indicator variable for thinning status (0 = unthinned, 1 = one thinning, 2 = two thinnings)  
+**hd_thin**: Dominant stand height at the time of thinning (m)  
+**tage**: age of stands at time of thinning  
+**tpha**: Number of trees per hectare after thinning  
+**tphb**: Number of trees per hectare before thinning  
+**bpha**: Basal area per hectare (m2) after thinning   
+**bphb**: Basal area per hectare (m2) before thinning  
+**bphr**: Basal area per hectare (m2) removed in thinning  
+**qmda**: Quadratic mean diameter (cm) after thinning  
+**qmdb**: Quadratic mean diameter (cm) before thinning  
+**vola**: Stand volume per hectare (m3) after thinning  
+**volb**: Stand volume per hectare (m3) before thinning  
+**volr**: Stand volume per hectare (m3) removed in thinning  
+
+Note: If the provided stand data is for unthinned stands then all thinning variables can be set to NA except for the thinid which must always have a value.
+
+## Growth and Yield Functions 
+
+**sprucesim** is designed for simulation and for the testing of different G&Y functions. At present there are several functions that must be included to run the stand simulator, but future versions will incorporate more flexibility. The currently required functions are:
+
+**fn.basalarea**: the basal area projection equation.  
+**fn.domht**: dominant height projection equation.  
+**fn.survival**: trees per hectare projection equation.  
+**fn.qmd**: quadratic mean diameter calculation.  
+**fn.treerem**: equation for predicting the number of stems per hectare after thinning.  
+**fn.vol**: stand level volume prediction equation
+
+Note: Equations for all base functions are included in **sprucesim**
+
+## Forest Growth and Yield Simulation - Unthinned
+
+Perhaps the simplest introduction to **sprucesim** is by simulating unthinned stands using the provided stand data **SpruceStands**. Given this data, a 100 year simulation with 5-year simulation periods can be performed with the call to **sprucesim()** as:
+
+```{r}
+library(sprucesim)
+library(tidyverse)
+sim1 <- sprucesim(stand.df = SpruceStands,
+         period.length=5,
+         n.periods = 20,
+         functions = list(
+           fn.basalarea = basal_area,
+           fn.domht = dom_height,
+           fn.survival = survival,
+           fn.qmd = qmd,
+           fn.treerem = tree_reduction,
+           fn.vol = volume))
+```
+The result from this call, sim1, can be converted to a dataframe using the helper function **wholestandDF** as:
+
+```{r}
+wholestandDF(sim1) %>% 
+  glimpse()
+```
+
+## Forest Growth and Yield Simulation - Thinning
+
+Thinnings can be implemented in various ways. If simulated thinnings are desired then the statement "thin = TRUE" must be included in the call to **sprucesim** along with the specification of the number of thinnings (e.g. num.thins = 1 or num.thins = 2)
+
+The "thinning trigger" can be based on either dominant stand height (hd) are stand basal area (bph). If bph is used as the thinning trigger then the statment "thin.bph = T" must be specified. Otherwise, if hd is used as the thinning trigger then "thin.bph == F" must be specified.
+
+When thinning using bph as the thinning trigger (thin.bph = TRUE), the target basal area is set using (min.bph.thin1 or min.bph.thin2). Alternatively, if hd is used (thin.bph == FALSE), the target dominant height is set using (min.hd.thin1 or min.hd.thin2).
+
+All thinnings are performed based on basal area removals. The thinning strength can be specified in two ways. The first is by means of a thinning quotiont (bph.tq1 or bph.tq2) which indicates the percentage of current basal area following thinning. For example, a thinning which removes 20% of the basal area has a thinning quotiont of 0.8. Alternatively, thinning can be implemented by specifying  a constant residual basal area following thinning using (bph.after.thin1 or bph.after.thin2). 
+
+The following will provide examples of how the various thinning methods can be implemented.
+
+## Case 1- Thinning according to dominant height
+
+When dominant stand height is used as the thinning trigger, the minimum dominant stand heights for each thinning must be included. Additionally either the basal area thinning quationt or the residual basal area following thinning must be included.
+
+**Example 1**: Simulate G&Y for 100 years applying one thinning with a minimum hd of 12m,removing 20% of the basal area.
+```{r}
+sim1 <- sprucesim(stand.df = SpruceStands,
+         period.length=5,
+n.periods = 20,
+functions = list(
+fn.basalarea = basal_area,
+fn.domht = dom_height,
+fn.survival = survival,
+fn.qmd = qmd,
+fn.treerem = tree_reduction,
+fn.vol = volume),
+
+thin=TRUE,
+num.thins = 1,
+
+thin.bph = FALSE,
+thinbyperc=TRUE,
+
+min.bph.thin1 = NULL,
+min.bph.thin2 = NULL,
+
+min.hd.thin1 = 12,
+min.hd.thin2 = NULL,
+
+bph.after.thin1 = NULL,
+bph.after.thin2 = NULL,
+
+bph.tq1 = 0.8,
+bph.tq2 = NULL) %>% 
+  wholestandDF(.)
+
+sim1 %>%  glimpse()
+```
+
+**Example 2**: Simulate G&Y for 100 years applying one thinning with a minimum hd of 12m,removing 20% of the basal area and a second thinning with a minimum hd of 16m, removing 25% of the basal area.
+```{r}
+sim1 <- sprucesim(stand.df = SpruceStands,
+         period.length=5,
+n.periods = 20,
+functions = list(
+fn.basalarea = basal_area,
+fn.domht = dom_height,
+fn.survival = survival,
+fn.qmd = qmd,
+fn.treerem = tree_reduction,
+fn.vol = volume),
+
+thin=TRUE,
+num.thins = 2,
+
+thin.bph = FALSE,
+thinbyperc=TRUE,
+
+min.bph.thin1 = NULL,
+min.bph.thin2 = NULL,
+
+min.hd.thin1 = 12,
+min.hd.thin2 = 16,
+
+bph.after.thin1 = NULL,
+bph.after.thin2 = NULL,
+
+bph.tq1 = 0.8,
+bph.tq2 = 0.75) %>% 
+  wholestandDF(.)
+
+sim1 %>% glimpse()
+```
+
+**Example 2**: Simulate G&Y for 100 years applying one thinning with a minimum hd of 12m, thinning to a residual basal area of 12m2 and a second thinning with a minimum hd of 16m, also thinning to a residual basal area of 14m2.
+```{r}
+sim1 <- sprucesim(stand.df = SpruceStands,
+         period.length=5,
+n.periods = 20,
+functions = list(
+fn.basalarea = basal_area,
+fn.domht = dom_height,
+fn.survival = survival,
+fn.qmd = qmd,
+fn.treerem = tree_reduction,
+fn.vol = volume),
+
+thin=TRUE,
+num.thins = 2,
+
+thin.bph = FALSE,
+thinbyperc=FALSE,
+
+min.bph.thin1 = NULL,
+min.bph.thin2 = NULL,
+
+min.hd.thin1 = 12,
+min.hd.thin2 = 16,
+
+bph.after.thin1 = 12,
+bph.after.thin2 = 14,
+
+bph.tq1 = NULL,
+bph.tq2 = NULL) %>% 
+  wholestandDF(.)
+
+sim1 %>%  glimpse()
+```
+
+## Case 2 - Thinning according to basal area
+
+**Example 4**: Simulate G&Y for 100 years applying one thinning with a minimum basal area of 20m,removing 20% of the basal area.
+```{r}
+sim1 <- sprucesim(stand.df = SpruceStands,
+         period.length=5,
+n.periods = 20,
+functions = list(
+fn.basalarea = basal_area,
+fn.domht = dom_height,
+fn.survival = survival,
+fn.qmd = qmd,
+fn.treerem = tree_reduction,
+fn.vol = volume),
+
+thin=TRUE,
+num.thins = 1,
+
+thin.bph = TRUE,
+thinbyperc=TRUE,
+
+min.bph.thin1 = 20,
+min.bph.thin2 = NULL,
+
+min.hd.thin1 = NULL,
+min.hd.thin2 = NULL,
+
+bph.after.thin1 = NULL,
+bph.after.thin2 = NULL,
+
+bph.tq1 = 0.8,
+bph.tq2 = NULL) %>% 
+  wholestandDF(.)
+
+sim1 %>%  glimpse(.)
+```
+
+**Example 5**: Simulate G&Y for 100 years applying one thinning with a minimum basal area of 20m,removing 20% of the basal area, and a second thinning with a minimum basal area of 25m removing 25% of the basal area.
+```{r}
+sim1 <- sprucesim(stand.df = SpruceStands,
+         period.length=5,
+n.periods = 20,
+functions = list(
+fn.basalarea = basal_area,
+fn.domht = dom_height,
+fn.survival = survival,
+fn.qmd = qmd,
+fn.treerem = tree_reduction,
+fn.vol = volume),
+
+thin=TRUE,
+num.thins = 2,
+
+thin.bph = TRUE,
+thinbyperc=TRUE,
+
+min.bph.thin1 = 20,
+min.bph.thin2 = 25,
+
+min.hd.thin1 = NULL,
+min.hd.thin2 = NULL,
+
+bph.after.thin1 = NULL,
+bph.after.thin2 = NULL,
+
+bph.tq1 = 0.8,
+bph.tq2 = 0.75) %>% 
+  wholestandDF(.)
+
+sim1 %>% glimpse(.)
+```
+
+**Example 6**: Simulate G&Y for 100 years applying one thinning with a minimum basal area of 20m,thinning to a residual basal area of 12m, and a second thinning with a minimum basal area of 25m, thinning to a residual basal area of 17m.
+```{r}
+sim1 <- sprucesim(stand.df = SpruceStands,
+         period.length=5,
+n.periods = 20,
+functions = list(
+fn.basalarea = basal_area,
+fn.domht = dom_height,
+fn.survival = survival,
+fn.qmd = qmd,
+fn.treerem = tree_reduction,
+fn.vol = volume),
+
+thin=TRUE,
+num.thins = 2,
+
+thin.bph = TRUE,
+thinbyperc=FALSE,
+
+min.bph.thin1 = 20,
+min.bph.thin2 = 25,
+
+min.hd.thin1 = NULL,
+min.hd.thin2 = NULL,
+
+bph.after.thin1 = 12,
+bph.after.thin2 = 17,
+
+bph.tq1 = NULL,
+bph.tq2 = NULL) %>% 
+  wholestandDF(.)
+
+sim1 %>%  glimpse(.)
+```
+## Notes
+
+**sprucesim** provides different methods to implement thinnings. However, there are currently no checks on the "resonability" of thinnings and in some cases strange results may arrise. Specifically, when thinning using dominant stand height as the thinning trigger and specifying the residual basal area, negative values can occur if the stocking is not such that the basal area of the stand is greater than the specified residual basal area at the time of thinning. For example, if a stand reaches a dominant stand of 12m (the specified hd at thinning) and the residual basal area is specified as 15m but the current stand basal area is 12m, a value of bpha = -3 will occur. 
+
+Future versions will incorporate better checks on these kinds of issues. However, because the base functions are inteneded for well managed stands, the stocking at thinning is generally not an issue when thinning according to recommended guidlines. However, there will exist extreme cases that may result in weird outcomes.

@@ -1,0 +1,14 @@
+Package: sprucesim
+Type: Package
+Title: Stand Level Forest Growth and Yield Simulator for Norway Spruce
+Version: 0.1.0
+Author: Micky G Allen II
+Maintainer: Micky G Allen II <micky10@vt.edu>
+Description: Provides a frame work for simulating Forest Growth and Yield of Norway Spruce forests. 
+License: GPL-3
+Encoding: UTF-8
+LazyData: true
+Imports:  tidyverse, dplyr, tidyr, purrr
+Depends: R (>= 3.5.0)
+VignetteBuilder: knitr
+Suggests: knitr, rmarkdown
