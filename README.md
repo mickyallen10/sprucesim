@@ -10,7 +10,8 @@ The goal of sprucesim is to to provide a framework for simulating even-aged stan
 Installation of `sprucesim` from github:
 
 ``` r
-devtools::install.github("mickyallen10/sprucesim",build_vignettes = TRUE)
+library(devtools)
+devtools::install_github("mickyallen10/sprucesim",build_vignettes = TRUE)
 ```
 
 Load `sprucesim` and dependent packages:
