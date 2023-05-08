@@ -97,7 +97,7 @@ volume <- function(stand.df){
   b2 <- 1.01153
   b3 <- 2.3204
 
-  VOL2 <- b0*hd2^b1 * bph2^b2 * exp(b3/age2)
+  VOL2 <- b0*hd2^b2 * bph2^b1 * exp(b3/age2)
   return(VOL2)
 }
 
